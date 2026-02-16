@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card'
 
 import {
     Briefcase, FileText, CheckCircle, ChevronRight, Clock,
-    Plus, History, Calendar, HelpCircle
+    Plus, History, Calendar, HelpCircle, Download, Copy, Check,
+    AlertCircle, ArrowRight
 } from 'lucide-react';
 
 type ViewMode = 'history' | 'new' | 'result';
@@ -41,6 +42,78 @@ const Assessments: React.FC = () => {
         if (item) {
             setCurrentResult(item);
             setView('result');
+        }
+    };
+
+    // --- Interactive Logic ---
+
+    const toggleSkill = (skill: string) => {
+        if (!currentResult) return;
+
+        const currentMap = currentResult.skillConfidenceMap || {};
+        const currentStatus = currentMap[skill] || 'practice';
+        const newStatus: 'know' | 'practice' = currentStatus === 'know' ? 'practice' : 'know';
+
+        const updatedMap: Record<string, 'know' | 'practice'> = { ...currentMap, [skill]: newStatus };
+        const updatedResult = { ...currentResult, skillConfidenceMap: updatedMap };
+
+        setCurrentResult(updatedResult);
+        saveAnalysis(updatedResult); // Persist immediately
+    };
+
+    const calculateLiveScore = () => {
+        if (!currentResult) return 0;
+        let score = currentResult.score; // Base score
+        const map = currentResult.skillConfidenceMap || {};
+
+        // Adjust based on toggles
+        Object.values(map).forEach(status => {
+            if (status === 'know') score += 2;
+            else score -= 2;
+        });
+
+        return Math.max(0, Math.min(100, score)); // Clamp 0-100
+    };
+
+    const getWeakSkills = () => {
+        if (!currentResult) return [];
+        const allSkills = Object.values(currentResult.skills).flat();
+        const map = currentResult.skillConfidenceMap || {};
+        // Filter skills that are NOT 'know' (default is 'practice')
+        return allSkills.filter(s => map[s] !== 'know').slice(0, 3);
+    };
+
+    const handleExport = (type: 'plan' | 'checklist' | 'questions' | 'full') => {
+        if (!currentResult) return;
+        let text = '';
+
+        if (type === 'plan') {
+            text = currentResult.plan.map(d => `${d.day} (${d.focus}):\n${d.tasks.map(t => `- ${t}`).join('\n')}`).join('\n\n');
+        } else if (type === 'checklist') {
+            text = currentResult.checklist.map(r => `${r.round}:\n${r.items.map(i => `- ${i}`).join('\n')}`).join('\n\n');
+        } else if (type === 'questions') {
+            text = currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n');
+        } else if (type === 'full') {
+            text = `ANALYSIS FOR ${currentResult.role} @ ${currentResult.company}\n\n`;
+            text += `READINESS SCORE: ${calculateLiveScore()}/100\n\n`;
+            text += `--- SKILLS ---\n${Object.entries(currentResult.skills).map(([c, s]) => `${c}: ${s.join(', ')}`).join('\n')}\n\n`;
+            text += `--- PLAN ---\n${currentResult.plan.map(d => `${d.day}: ${d.focus}\n${d.tasks.map(t => `- ${t}`).join('\n')}`).join('\n\n')}\n\n`;
+            text += `--- CHECKLIST ---\n${currentResult.checklist.map(r => `${r.round}\n${r.items.map(i => `- ${i}`).join('\n')}`).join('\n\n')}\n\n`;
+            text += `--- QUESTIONS ---\n${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
+        }
+
+        if (type === 'full') {
+            // Download as file
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentResult.role.replace(/\s+/g, '_')}_Analysis.txt`;
+            a.click();
+        } else {
+            // Copy to clipboard
+            navigator.clipboard.writeText(text);
+            alert('Copied to clipboard!');
         }
     };
 
@@ -175,18 +248,41 @@ const Assessments: React.FC = () => {
                                 <p className="text-indigo-200 text-lg flex items-center gap-2">
                                     <Briefcase className="w-5 h-5" /> {currentResult.company}
                                 </p>
+                                <div className="mt-6 flex flex-wrap gap-3">
+                                    <button onClick={() => handleExport('full')} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-sm font-medium flex items-center gap-2 transition-colors">
+                                        <Download className="w-4 h-4" /> Download Report
+                                    </button>
+                                </div>
                             </div>
                             <div className="flex items-center gap-6">
                                 <div className="text-right">
-                                    <p className="text-indigo-200 text-sm font-medium uppercase tracking-wider">Readiness Score</p>
-                                    <p className="text-5xl font-bold">{currentResult.score}/100</p>
+                                    <p className="text-indigo-200 text-sm font-medium uppercase tracking-wider">Live Readiness</p>
+                                    <p className="text-5xl font-bold">{calculateLiveScore()}/100</p>
                                 </div>
                                 <div className="w-24 h-24 rounded-full border-4 border-indigo-400 flex items-center justify-center text-2xl font-bold shadow-lg shadow-indigo-900/50 bg-indigo-800">
-                                    {currentResult.score}%
+                                    {calculateLiveScore()}%
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* Action Next Box */}
+                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+                        <div className="flex items-start gap-4">
+                            <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                                <AlertCircle className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-emerald-900">Recommended Next Step</h3>
+                                <p className="text-emerald-700 mt-1">
+                                    Focus on your weak areas: <span className="font-semibold">{getWeakSkills().join(', ') || 'General Prep'}</span>.
+                                </p>
+                            </div>
+                        </div>
+                        <button onClick={() => window.scrollTo({ top: 1000, behavior: 'smooth' })} className="px-6 py-3 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-emerald-200 shadow-lg">
+                            Start Day 1 Plan <ArrowRight className="w-4 h-4" />
+                        </button>
+                    </div>
 
                     <div className="grid md:grid-cols-3 gap-6">
                         {/* Skills Detected */}
@@ -194,19 +290,34 @@ const Assessments: React.FC = () => {
                             <Card>
                                 <CardHeader>
                                     <CardTitle className="flex items-center gap-2">
-                                        <CheckCircle className="w-5 h-5 text-primary" /> Detected Skills
+                                        <CheckCircle className="w-5 h-5 text-primary" /> Skill Analysis
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
+                                    <p className="text-xs text-gray-500">
+                                        Click skills to toggle status. <span className="text-green-600 font-bold">Knowing</span> skills improves your score.
+                                    </p>
                                     {Object.entries(currentResult.skills).map(([category, skills]) => (
                                         <div key={category}>
                                             <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{category}</h4>
                                             <div className="flex flex-wrap gap-2">
-                                                {skills.map(skill => (
-                                                    <span key={skill} className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-medium border border-indigo-100">
-                                                        {skill}
-                                                    </span>
-                                                ))}
+                                                {skills.map(skill => {
+                                                    const status = currentResult.skillConfidenceMap?.[skill] || 'practice';
+                                                    const isKnown = status === 'know';
+                                                    return (
+                                                        <button
+                                                            key={skill}
+                                                            onClick={() => toggleSkill(skill)}
+                                                            className={`px-2 py-1 rounded text-xs font-medium border transition-all flex items-center gap-1.5 ${isKnown
+                                                                ? 'bg-green-100 text-green-700 border-green-200'
+                                                                : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
+                                                                }`}
+                                                        >
+                                                            {isKnown && <Check className="w-3 h-3" />}
+                                                            {skill}
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     ))}
@@ -217,13 +328,16 @@ const Assessments: React.FC = () => {
                             </Card>
 
                             <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="flex items-center gap-2 text-base">
                                         <HelpCircle className="w-5 h-5 text-primary" /> Likely Questions
                                     </CardTitle>
+                                    <button onClick={() => handleExport('questions')} className="text-xs text-primary hover:underline flex items-center gap-1">
+                                        <Copy className="w-3 h-3" /> Copy
+                                    </button>
                                 </CardHeader>
                                 <CardContent>
-                                    <ul className="space-y-3">
+                                    <ul className="space-y-3 mt-2">
                                         {currentResult.questions.map((q, i) => (
                                             <li key={i} className="text-sm text-gray-700 flex gap-2">
                                                 <span className="text-primary font-bold">•</span>
@@ -239,10 +353,13 @@ const Assessments: React.FC = () => {
                         <div className="md:col-span-2 space-y-6">
                             {/* 7-Day Plan */}
                             <Card>
-                                <CardHeader>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <CardTitle className="flex items-center gap-2">
                                         <Calendar className="w-5 h-5 text-primary" /> 7-Day Preparation Plan
                                     </CardTitle>
+                                    <button onClick={() => handleExport('plan')} className="text-xs text-primary hover:underline flex items-center gap-1">
+                                        <Copy className="w-3 h-3" /> Copy
+                                    </button>
                                 </CardHeader>
                                 <CardContent>
                                     <div className="relative border-l-2 border-indigo-100 ml-3 py-2 space-y-6">
@@ -263,10 +380,13 @@ const Assessments: React.FC = () => {
 
                             {/* Round Checklist */}
                             <Card>
-                                <CardHeader>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                     <CardTitle className="flex items-center gap-2">
                                         <FileText className="w-5 h-5 text-primary" /> Interview Rounds Checklist
                                     </CardTitle>
+                                    <button onClick={() => handleExport('checklist')} className="text-xs text-primary hover:underline flex items-center gap-1">
+                                        <Copy className="w-3 h-3" /> Copy
+                                    </button>
                                 </CardHeader>
                                 <CardContent className="grid gap-4">
                                     {currentResult.checklist.map((round, idx) => (

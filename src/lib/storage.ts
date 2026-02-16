@@ -5,8 +5,19 @@ const STORAGE_KEY = 'placement_history';
 export function saveAnalysis(analysis: AnalysisResult): void {
     try {
         const history = getHistory();
-        // Prepend new analysis
-        const updated = [analysis, ...history];
+        const existingIndex = history.findIndex(item => item.id === analysis.id);
+
+        let updated: AnalysisResult[];
+
+        if (existingIndex >= 0) {
+            // Update existing
+            updated = [...history];
+            updated[existingIndex] = analysis;
+        } else {
+            // Prepend new
+            updated = [analysis, ...history];
+        }
+
         // Limit to last 20 entries
         const limited = updated.slice(0, 20);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(limited));

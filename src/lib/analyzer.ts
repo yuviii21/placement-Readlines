@@ -10,6 +10,7 @@ export interface AnalysisResult {
     plan: { day: string; focus: string; tasks: string[] }[];
     checklist: { round: string; items: string[] }[];
     questions: string[];
+    skillConfidenceMap?: Record<string, 'know' | 'practice'>;
 }
 
 const SKILL_KEYWORDS: Record<string, string[]> = {
@@ -152,6 +153,7 @@ export function analyzeJD(company: string, role: string, jdText: string): Analys
         score,
         plan: generatePlan(skills),
         checklist: generateChecklist(skills),
-        questions: generateQuestions(skills)
+        questions: generateQuestions(skills),
+        skillConfidenceMap: {}
     };
 }
