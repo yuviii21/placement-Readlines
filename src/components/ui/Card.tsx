@@ -1,15 +1,59 @@
 import React from 'react';
-import './components.css';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
-interface CardProps {
-    children: React.ReactNode;
-    className?: string;
+function cn(...inputs: ClassValue[]) {
+    return twMerge(clsx(inputs));
 }
 
-export const Card: React.FC<CardProps> = ({ children, className = '' }) => {
-    return (
-        <div className={`card ${className}`}>
-            {children}
-        </div>
-    );
-};
+const Card = React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+    <div
+        ref={ref}
+        className={cn(
+            "rounded-xl border border-gray-200 bg-white text-gray-950 shadow-sm",
+            className
+        )}
+        {...props}
+    />
+));
+Card.displayName = "Card";
+
+const CardHeader = React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+    <div
+        ref={ref}
+        className={cn("flex flex-col space-y-1.5 p-6", className)}
+        {...props}
+    />
+));
+CardHeader.displayName = "CardHeader";
+
+const CardTitle = React.forwardRef<
+    HTMLParagraphElement,
+    React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+    <h3
+        ref={ref}
+        className={cn(
+            "text-lg font-semibold leading-none tracking-tight text-[#111111]",
+            className
+        )}
+        {...props}
+    />
+));
+CardTitle.displayName = "CardTitle";
+
+const CardContent = React.forwardRef<
+    HTMLDivElement,
+    React.HTMLAttributes<HTMLDivElement>
+>(({ className, ...props }, ref) => (
+    <div ref={ref} className={cn("p-6 pt-0", className)} {...props} />
+));
+CardContent.displayName = "CardContent";
+
+export { Card, CardHeader, CardTitle, CardContent };
