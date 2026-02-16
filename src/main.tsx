@@ -1,3 +1,4 @@
+import React from 'react'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles/variables.css'
@@ -31,8 +32,6 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
     return this.props.children;
   }
 }
-
-import React from 'react';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
