@@ -7,6 +7,8 @@ import Practice from './pages/Practice';
 import Assessments from './pages/Assessments';
 import Resources from './pages/Resources';
 import Profile from './pages/Profile';
+import TestChecklistPage from './pages/TestChecklist';
+import ShipLocked from './pages/ShipLocked';
 
 const App: React.FC = () => {
   return (
@@ -14,6 +16,10 @@ const App: React.FC = () => {
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
+
+        {/* Verification Routes (Standalone) */}
+        <Route path="/prp/07-test" element={<TestChecklistPage />} />
+        <Route path="/prp/08-ship" element={<ShipLocked />} />
 
         {/* Protected Dashboard Routes */}
         <Route path="/dashboard" element={<DashboardLayout />}>

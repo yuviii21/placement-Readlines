@@ -67,3 +67,28 @@ export function getAnalysis(id: string): AnalysisResult | undefined {
 export function clearHistory(): void {
     localStorage.removeItem(STORAGE_KEY);
 }
+
+const CHECKLIST_KEY = 'prp_test_checklist';
+
+export interface TestChecklist {
+    [key: string]: boolean;
+}
+
+export function saveChecklist(checklist: TestChecklist): void {
+    try {
+        localStorage.setItem(CHECKLIST_KEY, JSON.stringify(checklist));
+    } catch (error) {
+        console.error("Failed to save checklist:", error);
+    }
+}
+
+export function getChecklist(): TestChecklist {
+    try {
+        const raw = localStorage.getItem(CHECKLIST_KEY);
+        if (!raw) return {};
+        return JSON.parse(raw);
+    } catch (error) {
+        console.error("Failed to retrieve checklist:", error);
+        return {};
+    }
+}
