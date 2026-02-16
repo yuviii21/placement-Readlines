@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Code, Video, BarChart3, CheckCircle } from 'lucide-react';
+import { Code, Video, BarChart3 } from 'lucide-react';
 
 const LandingPage: React.FC = () => {
     const navigate = useNavigate();
