@@ -11,6 +11,20 @@ export interface AnalysisResult {
     checklist: { round: string; items: string[] }[];
     questions: string[];
     skillConfidenceMap?: Record<string, 'know' | 'practice'>;
+    companyIntel: CompanyIntel;
+    roundMapping: RoundMapping[];
+}
+
+export interface CompanyIntel {
+    size: 'Startup' | 'Mid-size' | 'Enterprise';
+    industry: string;
+    hiringFocus: string;
+}
+
+export interface RoundMapping {
+    round: string;
+    focus: string;
+    description: string;
 }
 
 const SKILL_KEYWORDS: Record<string, string[]> = {
@@ -140,9 +154,60 @@ function generateQuestions(skills: Record<string, string[]>): string[] {
     return Array.from(new Set(questions)).slice(0, 10);
 }
 
+const KNOWN_ENTERPRISES = ['google', 'microsoft', 'amazon', 'meta', 'apple', 'netflix', 'tcs', 'infosys', 'wipro', 'accenture', 'capgemini', 'cognizant', 'ibm', 'oracle', 'cisco', 'adobe', 'salesforce', 'uber', 'linkedin', 'twitter', 'flipkart', 'walmart', 'paytm', 'zomato', 'swiggy', 'ola'];
+
+function getCompanyIntel(company: string): CompanyIntel {
+    const lower = company.toLowerCase().trim();
+    let size: 'Startup' | 'Mid-size' | 'Enterprise' = 'Startup';
+    let industry = 'Technology';
+    let hiringFocus = 'Practical application, development speed, and full-stack capabilities.';
+
+    if (KNOWN_ENTERPRISES.some(e => lower.includes(e))) {
+        size = 'Enterprise';
+        if (['tcs', 'infosys', 'wipro', 'accenture', 'cognizant', 'capgemini'].some(e => lower.includes(e))) {
+            industry = 'IT Services';
+            hiringFocus = 'Mass hiring, aptitude, core CS fundamentals, and trainability.';
+        } else {
+            industry = 'Product';
+            hiringFocus = 'Data Structures & Algorithms (DSA), System Design, and Scalability.';
+        }
+    } else {
+        if (lower.includes('solutions') || lower.includes('systems') || lower.includes('technologies') || lower.includes('pvt') || lower.includes('ltd')) {
+            size = 'Mid-size';
+            hiringFocus = 'Balanced overlap of specific tech stack skills and problem solving.';
+        }
+    }
+
+    return { size, industry, hiringFocus };
+}
+
+function generateRoundMapping(intel: CompanyIntel): RoundMapping[] {
+    const rounds: RoundMapping[] = [];
+
+    if (intel.size === 'Enterprise' && intel.industry === 'IT Services') {
+        rounds.push({ round: 'Round 1: Online Assessment', focus: 'Aptitude & Logic', description: 'Quantitative, Logical Reasoning, and Verbal Ability tests to filter candidates.' });
+        rounds.push({ round: 'Round 2: Technical Interview 1', focus: 'Basics & Core CS', description: 'Questions on OOPs, DBMS, SQL, and basic coding (Arrays/Strings).' });
+        rounds.push({ round: 'Round 3: Technical Interview 2', focus: 'Project & Advanced', description: 'Deep dive into your resume projects and slightly harder technical concepts.' });
+        rounds.push({ round: 'Round 4: HR Discussion', focus: 'Behavioral', description: 'Willingness to relocate, work shifts, and company culture fit.' });
+    } else if (intel.size === 'Enterprise') {
+        rounds.push({ round: 'Round 1: Coding Challenge', focus: 'DSA', description: '1-2 LeetCode Medium/Hard problems on HackerRank/CodeSignal.' });
+        rounds.push({ round: 'Round 2: Technical Loop 1', focus: 'DSA & Problem Solving', description: 'Live coding session focusing on algorithmic optimization.' });
+        rounds.push({ round: 'Round 3: Technical Loop 2', focus: 'System Design / LLD', description: 'Designing scalable components or Low Level Design (Class diagrams).' });
+        rounds.push({ round: 'Round 4: Behavioral / Hiring Manager', focus: 'Culture Fit', description: 'Situation-based questions (STAR method) and team fit.' });
+    } else {
+        rounds.push({ round: 'Round 1: Screening / Take-home', focus: 'Practical Skill', description: 'A small assignment or discussion to verify you can write code.' });
+        rounds.push({ round: 'Round 2: Machine Coding', focus: 'Live Dev', description: 'Building a small feature or component live (e.g., React component or API endpoint).' });
+        rounds.push({ round: 'Round 3: Tech & Culture', focus: 'Depth & Fit', description: 'Discussing past challenges, rapid-fire stack questions, and "Why us?".' });
+        rounds.push({ round: 'Round 4: Founder/CTO Round', focus: 'Vision', description: 'Final conversation about your drive and the company goal.' });
+    }
+    return rounds;
+}
+
 export function analyzeJD(company: string, role: string, jdText: string): AnalysisResult {
     const skills = extractSkills(jdText);
     const score = calculateScore(skills, jdText, company, role);
+    const companyIntel = getCompanyIntel(company);
+
     return {
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
@@ -154,6 +219,8 @@ export function analyzeJD(company: string, role: string, jdText: string): Analys
         plan: generatePlan(skills),
         checklist: generateChecklist(skills),
         questions: generateQuestions(skills),
-        skillConfidenceMap: {}
+        skillConfidenceMap: {},
+        companyIntel,
+        roundMapping: generateRoundMapping(companyIntel)
     };
 }

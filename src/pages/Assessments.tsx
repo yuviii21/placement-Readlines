@@ -351,6 +351,62 @@ const Assessments: React.FC = () => {
 
                         {/* Plan & Checklist */}
                         <div className="md:col-span-2 space-y-6">
+                            {/* Company Intel Card */}
+                            <Card className="bg-gradient-to-br from-gray-900 to-gray-800 text-white border-none">
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2 text-indigo-300">
+                                        <Briefcase className="w-5 h-5" /> Company Intelligence
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="flex items-center gap-4">
+                                        <div className="px-3 py-1 bg-white/10 rounded-full text-xs font-medium border border-white/20">
+                                            {currentResult.companyIntel?.size || 'Startup'}
+                                        </div>
+                                        <div className="px-3 py-1 bg-white/10 rounded-full text-xs font-medium border border-white/20">
+                                            {currentResult.companyIntel?.industry || 'Technology'}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-400 uppercase tracking-wider font-bold mb-1">Typical Hiring Focus</p>
+                                        <p className="text-sm text-gray-200 leading-relaxed">
+                                            {currentResult.companyIntel?.hiringFocus || 'Practical application and problem solving.'}
+                                        </p>
+                                    </div>
+                                    <p className="text-[10px] text-gray-500 italic border-t border-gray-700 pt-2 mt-2">
+                                        Demo Mode: Company intel generated heuristically based on name.
+                                    </p>
+                                </CardContent>
+                            </Card>
+
+                            {/* Round Mapping Timeline */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Clock className="w-5 h-5 text-primary" /> Projected Round Flow
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-6 relative pl-2">
+                                        {/* Vertical Line */}
+                                        <div className="absolute left-[19px] top-2 bottom-4 w-0.5 bg-gray-100"></div>
+
+                                        {currentResult.roundMapping?.map((round, idx) => (
+                                            <div key={idx} className="relative pl-10">
+                                                <div className="absolute left-3 top-1 w-4 h-4 rounded-full bg-white border-4 border-indigo-200 shadow-sm z-10"></div>
+                                                <div>
+                                                    <h4 className="font-bold text-[#111111] text-sm">{round.round}</h4>
+                                                    <span className="text-xs font-semibold text-primary/80 uppercase tracking-wide">{round.focus}</span>
+                                                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                                                        {round.description}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
                             {/* 7-Day Plan */}
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
