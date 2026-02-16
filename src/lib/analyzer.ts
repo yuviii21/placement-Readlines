@@ -2,15 +2,25 @@
 export interface AnalysisResult {
     id: string;
     createdAt: string;
+    updatedAt: string;
     company: string;
     role: string;
     jdText: string;
-    skills: Record<string, string[]>;
-    score: number;
-    plan: { day: string; focus: string; tasks: string[] }[];
+    extractedSkills: {
+        coreCS: string[];
+        languages: string[];
+        web: string[];
+        data: string[];
+        cloud: string[];
+        testing: string[];
+        other: string[];
+    };
+    baseScore: number;
+    finalScore: number;
+    plan7Days: { day: string; focus: string; tasks: string[] }[];
     checklist: { round: string; items: string[] }[];
     questions: string[];
-    skillConfidenceMap?: Record<string, 'know' | 'practice'>;
+    skillConfidenceMap: Record<string, 'know' | 'practice'>;
     companyIntel: CompanyIntel;
     roundMapping: RoundMapping[];
 }
@@ -28,12 +38,12 @@ export interface RoundMapping {
 }
 
 const SKILL_KEYWORDS: Record<string, string[]> = {
-    'Core CS': ['DSA', 'Data Structures', 'Algorithms', 'OOP', 'Object Oriented', 'DBMS', 'Database Management', 'OS', 'Operating Systems', 'Networks', 'Computer Networks', 'System Design'],
-    'Languages': ['Java', 'Python', 'JavaScript', 'TypeScript', 'C\\+\\+', 'C#', 'Golang', 'Go', 'Ruby', 'Swift', 'Kotlin', 'PHP', 'Rust'],
-    'Web': ['React', 'Next.js', 'Node.js', 'Express', 'Angular', 'Vue', 'HTML', 'CSS', 'Tailwind', 'Redux', 'REST', 'GraphQL', 'API'],
-    'Data': ['SQL', 'MySQL', 'PostgreSQL', 'MongoDB', 'NoSQL', 'Redis', 'Pandas', 'NumPy', 'Spark', 'Hadoop'],
-    'Cloud/DevOps': ['AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes', 'CI/CD', 'Jenkins', 'Git', 'Linux', 'Terraform'],
-    'Testing': ['Selenium', 'Cypress', 'Playwright', 'Jest', 'Mocha', 'JUnit', 'PyTest']
+    'coreCS': ['DSA', 'Data Structures', 'Algorithms', 'OOP', 'Object Oriented', 'DBMS', 'Database Management', 'OS', 'Operating Systems', 'Networks', 'Computer Networks', 'System Design'],
+    'languages': ['Java', 'Python', 'JavaScript', 'TypeScript', 'C\\+\\+', 'C#', 'Golang', 'Go', 'Ruby', 'Swift', 'Kotlin', 'PHP', 'Rust'],
+    'web': ['React', 'Next.js', 'Node.js', 'Express', 'Angular', 'Vue', 'HTML', 'CSS', 'Tailwind', 'Redux', 'REST', 'GraphQL', 'API'],
+    'data': ['SQL', 'MySQL', 'PostgreSQL', 'MongoDB', 'NoSQL', 'Redis', 'Pandas', 'NumPy', 'Spark', 'Hadoop'],
+    'cloud': ['AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes', 'CI/CD', 'Jenkins', 'Git', 'Linux', 'Terraform'],
+    'testing': ['Selenium', 'Cypress', 'Playwright', 'Jest', 'Mocha', 'JUnit', 'PyTest']
 };
 
 const QUESTIONS_DB: Record<string, string[]> = {
@@ -47,38 +57,39 @@ const QUESTIONS_DB: Record<string, string[]> = {
     'Default': ['Tell me about yourself.', 'What are your strengths and weaknesses?', 'Why do you want to join us?']
 };
 
-function extractSkills(text: string): Record<string, string[]> {
-    const detectedSkills: Record<string, string[]> = {};
+function extractSkills(text: string): AnalysisResult['extractedSkills'] {
+    const detected: AnalysisResult['extractedSkills'] = {
+        coreCS: [], languages: [], web: [], data: [], cloud: [], testing: [], other: []
+    };
     const lowerText = text.toLowerCase();
 
     for (const [category, keywords] of Object.entries(SKILL_KEYWORDS)) {
         const found = keywords.filter(keyword => {
-            // Escape special regex chars like +
             const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            // Look for whole word matches or typical variations
             const regex = new RegExp(`\\b${escaped.toLowerCase()}\\b`, 'i');
             return regex.test(lowerText);
         });
-
         if (found.length > 0) {
-            detectedSkills[category] = found;
+            // @ts-ignore - we know keys match
+            detected[category] = found;
         }
     }
 
-    // If absolutely nothing found, add a fallback
-    if (Object.keys(detectedSkills).length === 0) {
-        detectedSkills['General'] = ['Communication', 'Problem Solving'];
+    // Fallback if empty
+    const totalFound = Object.values(detected).flat().length;
+    if (totalFound === 0) {
+        detected.other = ['Communication', 'Problem Solving', 'Basic Coding', 'Projects'];
     }
 
-    return detectedSkills;
+    return detected;
 }
 
-function calculateScore(skills: Record<string, string[]>, jdText: string, company: string, role: string): number {
+function calculateScore(skills: AnalysisResult['extractedSkills'], jdText: string, company: string, role: string): number {
     let score = 35; // Base score
 
     // Categorical density
-    const categoriesPresent = Object.keys(skills).filter(k => k !== 'General').length;
-    score += Math.min(30, categoriesPresent * 5); // Max 30 for categories
+    const categoriesPresent = Object.values(skills).filter(s => s.length > 0).length;
+    score += Math.min(30, categoriesPresent * 5);
 
     // Metadata completeness
     if (company && company.length > 2) score += 10;
@@ -88,13 +99,12 @@ function calculateScore(skills: Record<string, string[]>, jdText: string, compan
     if (jdText.length > 800) score += 10;
     else if (jdText.length > 400) score += 5;
 
-    // Cap at 100
     return Math.min(100, score);
 }
 
-function generatePlan(skills: Record<string, string[]>): { day: string; focus: string; tasks: string[] }[] {
+function generatePlan(skills: AnalysisResult['extractedSkills']): { day: string; focus: string; tasks: string[] }[] {
     const allSkills = Object.values(skills).flat();
-    const hasWeb = skills['Web'];
+    const hasWeb = skills.web.length > 0;
 
     return [
         { day: 'Day 1', focus: 'Foundation & Core CS', tasks: ['Revise Oops concepts', 'Brush up on DBMS normalization', 'Review OS basics (Process, Threads)'] },
@@ -107,50 +117,41 @@ function generatePlan(skills: Record<string, string[]>): { day: string; focus: s
     ];
 }
 
-function generateChecklist(skills: Record<string, string[]>): { round: string; items: string[] }[] {
-    const flattenedSkills = Object.values(skills).flat().join(', ');
+function generateChecklist(skills: AnalysisResult['extractedSkills']): { round: string; items: string[] }[] {
+    const flattenedSkills = Object.values(skills).flat().slice(0, 5).join(', ');
 
     return [
         { round: 'Round 1: Aptitude & Basics', items: ['Quantitative Aptitude (Time & Work, Profit/Loss)', 'Logical Reasoning', 'Verbal Ability', 'Basic Technical MCQs'] },
         { round: 'Round 2: Coding & DSA', items: ['Array/String manipulation', 'HashMaps & Sets', 'Two Pointer approach', 'Standard algorithms (BFS/DFS)'] },
-        { round: 'Round 3: Technical Interview', items: [`Deep dive into ${flattenedSkills}`, 'Project walkthrough', 'Database queries & Schema design', 'System Design basics'] },
+        { round: 'Round 3: Technical Interview', items: [`Deep dive into ${flattenedSkills || 'core skills'}`, 'Project walkthrough', 'Database queries & Schema design', 'System Design basics'] },
         { round: 'Round 4: HR / Managerial', items: ['"Why this company?"', 'Salary expectations', 'Relocation & Bond discussion', 'Company research'] }
     ];
 }
 
-function generateQuestions(skills: Record<string, string[]>): string[] {
+function generateQuestions(skills: AnalysisResult['extractedSkills']): string[] {
     let questions: string[] = [];
 
-    // Prioritize specific category questions
-    Object.keys(skills).forEach(cat => {
-        // rudimentary mapping
-        if (cat === 'Languages') {
-            skills[cat].forEach(lang => {
-                const key = Object.keys(QUESTIONS_DB).find(k => k.toLowerCase() === lang.toLowerCase());
-                if (key) questions.push(...QUESTIONS_DB[key]);
-                else if (lang.toLowerCase().includes('java')) questions.push(...QUESTIONS_DB['Java']);
-                else if (lang.toLowerCase().includes('python')) questions.push(...QUESTIONS_DB['Python']);
-            });
-        }
-        if (cat === 'Web') {
-            if (skills[cat].some(s => s.toLowerCase().includes('react'))) questions.push(...QUESTIONS_DB['React']);
-            questions.push('Explain the client-server architecture.');
-        }
-        if (cat === 'Data') {
-            if (skills[cat].some(s => s.toLowerCase().includes('sql'))) questions.push(...QUESTIONS_DB['SQL']);
-        }
-        if (cat === 'Core CS') {
-            if (skills[cat].some(s => s.toLowerCase().includes('dsa') || s.toLowerCase().includes('algo'))) questions.push(...QUESTIONS_DB['DSA']);
-            if (skills[cat].some(s => s.toLowerCase().includes('system design'))) questions.push(...QUESTIONS_DB['System Design']);
-        }
+    // Map new categories to DB lookups
+    skills.languages.forEach(lang => {
+        const key = Object.keys(QUESTIONS_DB).find(k => k.toLowerCase() === lang.toLowerCase());
+        if (key) questions.push(...QUESTIONS_DB[key]);
+        else if (lang.toLowerCase().includes('java')) questions.push(...QUESTIONS_DB['Java']);
+        else if (lang.toLowerCase().includes('python')) questions.push(...QUESTIONS_DB['Python']);
     });
 
-    // Fill with defaults if needed
+    if (skills.web.some(s => s.toLowerCase().includes('react'))) questions.push(...QUESTIONS_DB['React']);
+    if (skills.web.length > 0) questions.push('Explain the client-server architecture.');
+
+    if (skills.data.some(s => s.toLowerCase().includes('sql'))) questions.push(...QUESTIONS_DB['SQL']);
+
+    if (skills.coreCS.some(s => s.toLowerCase().includes('dsa') || s.toLowerCase().includes('algo'))) questions.push(...QUESTIONS_DB['DSA']);
+    if (skills.coreCS.some(s => s.toLowerCase().includes('system design'))) questions.push(...QUESTIONS_DB['System Design']);
+
+    // Fill with defaults
     if (questions.length < 5) {
         questions.push(...QUESTIONS_DB['Default']);
     }
 
-    // Deduplicate and limit to 10
     return Array.from(new Set(questions)).slice(0, 10);
 }
 
@@ -204,21 +205,23 @@ function generateRoundMapping(intel: CompanyIntel): RoundMapping[] {
 }
 
 export function analyzeJD(company: string, role: string, jdText: string): AnalysisResult {
-    const skills = extractSkills(jdText);
-    const score = calculateScore(skills, jdText, company, role);
+    const extractedSkills = extractSkills(jdText);
+    const score = calculateScore(extractedSkills, jdText, company, role);
     const companyIntel = getCompanyIntel(company);
 
     return {
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         company,
         role,
         jdText,
-        skills,
-        score,
-        plan: generatePlan(skills),
-        checklist: generateChecklist(skills),
-        questions: generateQuestions(skills),
+        extractedSkills,
+        baseScore: score,
+        finalScore: score, // Initially same as base
+        plan7Days: generatePlan(extractedSkills),
+        checklist: generateChecklist(extractedSkills),
+        questions: generateQuestions(extractedSkills),
         skillConfidenceMap: {},
         companyIntel,
         roundMapping: generateRoundMapping(companyIntel)

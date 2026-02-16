@@ -55,31 +55,67 @@ const Assessments: React.FC = () => {
         const newStatus: 'know' | 'practice' = currentStatus === 'know' ? 'practice' : 'know';
 
         const updatedMap: Record<string, 'know' | 'practice'> = { ...currentMap, [skill]: newStatus };
-        const updatedResult = { ...currentResult, skillConfidenceMap: updatedMap };
+
+        // Recalculate score immediately
+        let newScore = currentResult.baseScore;
+        Object.values(updatedMap).forEach(status => {
+            if (status === 'know') newScore += 2;
+            // 'practice' doesn't subtract from base, base is initial state. 
+            // Wait, previous logic was score += 2 for know, -= 2 for practice relative to currentResult.score?
+            // standardizing: baseScore is the static analysis score.
+            // finalScore = baseScore + (know * 2). 
+            // Let's say default is 0 adjustment.
+        });
+
+        // Actually, let's keep the logic simple: 
+        // We want live updates. 
+        // Let's say every 'know' adds 2 points to baseScore.
+        // And every 'practice' (explicitly toggled) maybe subtracts? 
+        // The prompt said: "Live Readiness Score: Score updates in real-time based on your confidence (+2 for "I know", -2 for "Need practice")."
+        // But if baseScore includes the skills already? 
+        // Let's assume baseScore is the "Assessment" score.
+        // User confidence is an overlay.
+
+        // Let's follow the previous logic's spirit but make it deterministic.
+        // Let's use calculateLiveScore logic here to update finalScore.
+
+        // We need a temporary object to calculate score
+        const tempResult = { ...currentResult, skillConfidenceMap: updatedMap };
+        const liveScore = calculateLiveScore(tempResult);
+
+        const updatedResult = {
+            ...currentResult,
+            skillConfidenceMap: updatedMap,
+            finalScore: liveScore,
+            updatedAt: new Date().toISOString()
+        };
 
         setCurrentResult(updatedResult);
-        saveAnalysis(updatedResult); // Persist immediately
+        saveAnalysis(updatedResult);
     };
 
-    const calculateLiveScore = () => {
-        if (!currentResult) return 0;
-        let score = currentResult.score; // Base score
-        const map = currentResult.skillConfidenceMap || {};
+    const calculateLiveScore = (result: AnalysisResult | null = currentResult) => {
+        if (!result) return 0;
+        let score = result.baseScore;
+        const map = result.skillConfidenceMap || {};
 
-        // Adjust based on toggles
+        // Apply adjustments
+        // If skill is in map:
+        // 'know' -> +2
+        // 'practice' -> -2
         Object.values(map).forEach(status => {
             if (status === 'know') score += 2;
             else score -= 2;
         });
 
-        return Math.max(0, Math.min(100, score)); // Clamp 0-100
+        return Math.max(0, Math.min(100, score));
     };
 
     const getWeakSkills = () => {
         if (!currentResult) return [];
-        const allSkills = Object.values(currentResult.skills).flat();
+        // Flatten extractedSkills
+        const allSkills = Object.values(currentResult.extractedSkills).flat();
         const map = currentResult.skillConfidenceMap || {};
-        // Filter skills that are NOT 'know' (default is 'practice')
         return allSkills.filter(s => map[s] !== 'know').slice(0, 3);
     };
 
@@ -88,7 +124,7 @@ const Assessments: React.FC = () => {
         let text = '';
 
         if (type === 'plan') {
-            text = currentResult.plan.map(d => `${d.day} (${d.focus}):\n${d.tasks.map(t => `- ${t}`).join('\n')}`).join('\n\n');
+            text = currentResult.plan7Days.map(d => `${d.day} (${d.focus}):\n${d.tasks.map(t => `- ${t}`).join('\n')}`).join('\n\n');
         } else if (type === 'checklist') {
             text = currentResult.checklist.map(r => `${r.round}:\n${r.items.map(i => `- ${i}`).join('\n')}`).join('\n\n');
         } else if (type === 'questions') {
@@ -96,8 +132,8 @@ const Assessments: React.FC = () => {
         } else if (type === 'full') {
             text = `ANALYSIS FOR ${currentResult.role} @ ${currentResult.company}\n\n`;
             text += `READINESS SCORE: ${calculateLiveScore()}/100\n\n`;
-            text += `--- SKILLS ---\n${Object.entries(currentResult.skills).map(([c, s]) => `${c}: ${s.join(', ')}`).join('\n')}\n\n`;
-            text += `--- PLAN ---\n${currentResult.plan.map(d => `${d.day}: ${d.focus}\n${d.tasks.map(t => `- ${t}`).join('\n')}`).join('\n\n')}\n\n`;
+            text += `--- SKILLS ---\n${Object.entries(currentResult.extractedSkills).map(([c, s]) => `${c}: ${s.join(', ')}`).join('\n')}\n\n`;
+            text += `--- PLAN ---\n${currentResult.plan7Days.map(d => `${d.day}: ${d.focus}\n${d.tasks.map(t => `- ${t}`).join('\n')}`).join('\n\n')}\n\n`;
             text += `--- CHECKLIST ---\n${currentResult.checklist.map(r => `${r.round}\n${r.items.map(i => `- ${i}`).join('\n')}`).join('\n\n')}\n\n`;
             text += `--- QUESTIONS ---\n${currentResult.questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
         }
@@ -165,7 +201,7 @@ const Assessments: React.FC = () => {
                                 <CardContent className="flex items-center justify-between p-6">
                                     <div className="flex items-start gap-4">
                                         <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-primary font-bold">
-                                            {item.score}
+                                            {item.finalScore}
                                         </div>
                                         <div>
                                             <h3 className="font-semibold text-lg text-[#111111] group-hover:text-primary transition-colors">
@@ -224,6 +260,11 @@ const Assessments: React.FC = () => {
                                 onChange={(e) => setJdText(e.target.value)}
                             />
                             <p className="text-xs text-gray-400 text-right">{jdText.length} chars</p>
+                            {jdText.length < 200 && jdText.length > 0 && (
+                                <p className="text-xs text-amber-600 flex items-center gap-1 justify-end animate-in fade-in">
+                                    <AlertCircle className="w-3 h-3" /> JD is short. Results may be generic.
+                                </p>
+                            )}
                         </div>
                         <button
                             onClick={handleAnalyze}
@@ -297,31 +338,40 @@ const Assessments: React.FC = () => {
                                     <p className="text-xs text-gray-500">
                                         Click skills to toggle status. <span className="text-green-600 font-bold">Knowing</span> skills improves your score.
                                     </p>
-                                    {Object.entries(currentResult.skills).map(([category, skills]) => (
-                                        <div key={category}>
-                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{category}</h4>
-                                            <div className="flex flex-wrap gap-2">
-                                                {skills.map(skill => {
-                                                    const status = currentResult.skillConfidenceMap?.[skill] || 'practice';
-                                                    const isKnown = status === 'know';
-                                                    return (
-                                                        <button
-                                                            key={skill}
-                                                            onClick={() => toggleSkill(skill)}
-                                                            className={`px-2 py-1 rounded text-xs font-medium border transition-all flex items-center gap-1.5 ${isKnown
-                                                                ? 'bg-green-100 text-green-700 border-green-200'
-                                                                : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
-                                                                }`}
-                                                        >
-                                                            {isKnown && <Check className="w-3 h-3" />}
-                                                            {skill}
-                                                        </button>
-                                                    );
-                                                })}
+                                    {/* Skills Rendering */}
+                                    {Object.entries(currentResult.extractedSkills).map(([key, skills]) => {
+                                        if (skills.length === 0) return null;
+                                        // Format Display Name: coreCS -> Core CS, web -> Web
+                                        const displayName = key === 'coreCS' ? 'Core CS' :
+                                            key === 'other' ? 'General' :
+                                                key.charAt(0).toUpperCase() + key.slice(1);
+
+                                        return (
+                                            <div key={key}>
+                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{displayName}</h4>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {skills.map(skill => {
+                                                        const status = currentResult.skillConfidenceMap?.[skill] || 'practice';
+                                                        const isKnown = status === 'know';
+                                                        return (
+                                                            <button
+                                                                key={skill}
+                                                                onClick={() => toggleSkill(skill)}
+                                                                className={`px-2 py-1 rounded text-xs font-medium border transition-all flex items-center gap-1.5 ${isKnown
+                                                                    ? 'bg-green-100 text-green-700 border-green-200'
+                                                                    : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'
+                                                                    }`}
+                                                            >
+                                                                {isKnown && <Check className="w-3 h-3" />}
+                                                                {skill}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                    {Object.keys(currentResult.skills).length === 0 && (
+                                        );
+                                    })}
+                                    {Object.values(currentResult.extractedSkills).flat().length === 0 && (
                                         <p className="text-sm text-gray-500 italic">No specific technical skills detected.</p>
                                     )}
                                 </CardContent>
@@ -419,7 +469,7 @@ const Assessments: React.FC = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="relative border-l-2 border-indigo-100 ml-3 py-2 space-y-6">
-                                        {currentResult.plan.map((day, idx) => (
+                                        {currentResult.plan7Days.map((day, idx) => (
                                             <div key={idx} className="relative pl-8">
                                                 <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-white border-2 border-primary"></div>
                                                 <h4 className="font-bold text-[#111111] leading-none mb-1">{day.day}: {day.focus}</h4>
